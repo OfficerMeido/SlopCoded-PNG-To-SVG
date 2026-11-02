@@ -1,11 +1,9 @@
 # SlopCoded-PNG-To-SVG
 A Slop Coded-PNG-To-SVG Converter made by claude.ai for linux
 # demo
-![](https://github.com/OfficerMeido/SlopCoded-PNG-To-SVG/demo.gif)
 <div align="center">
-  <img src="(https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/demo.gif)" width="200" />
+  <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/demo.gif" width="500" />
 </div>
-
 # What claude.ai wrote down below 
 # PNG to SVG (Linux)
 
