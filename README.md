@@ -10,7 +10,7 @@ A Slop Coded-PNG-To-SVG Converter made by claude.ai for linux
 </div>
 <p>Clare SVG credit: <a href="https://www.deviantart.com/vigoord/art/Claymore-Clare's-Organization-Symbol-2-901779657">vigoord</a></p>
 
-# Improvements to do when more free usage come available.
+# Improvements to do when more free usage comes available.
 Ask claude to get XMR.svg more symmetrical like the original. 
 
 
