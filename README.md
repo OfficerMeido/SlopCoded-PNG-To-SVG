@@ -4,6 +4,13 @@ A Slop Coded-PNG-To-SVG Converter made by claude.ai for linux
 <div align="center">
   <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/demo.gif" width="500" />
 </div>
+<div style="display: flex; gap: 10px; align-items: center;">
+  <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/Clare.svg" height="500" style="object-fit: contain;" />
+  <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/XMR.svg" height="500" style="object-fit: contain;" />
+</div>
+<p>Clare SVG credit: <a href="https://www.deviantart.com/vigoord/art/Claymore-Clare's-Organization-Symbol-2-901779657">vigoord</a></p>
+
+
 # What claude.ai wrote down below 
 # PNG to SVG (Linux)
 
