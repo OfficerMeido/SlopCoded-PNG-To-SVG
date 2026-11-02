@@ -1,0 +1,16 @@
+[package]
+name = "png_to_svg"
+version = "0.1.0"
+edition = "2021"
+description = "Vectorize PNG files to SVG with clean, smooth edges"
+
+[dependencies]
+vtracer = "0.6"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+# Do not set panic = "abort": the program catches panics so one bad file
+# cannot take down a whole batch.

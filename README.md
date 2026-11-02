@@ -1,58 +1,40 @@
-# SlopCoded-PNG-To-SVG
-A Slop Coded-PNG-To-SVG Converter made by claude.ai for linux
-# demo
-<div align="center">
-  <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/demo.gif" width="500" />
-</div>
-<div style="display: flex; gap: 10px; align-items: center;">
-  <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/Clare.svg" height="400" style="object-fit: contain;" />
-  <img src="https://raw.githubusercontent.com/OfficerMeido/SlopCoded-PNG-To-SVG/refs/heads/main/XMR.svg" height="400" style="object-fit: contain;" />
-</div>
-<p>Clare SVG credit: <a href="https://www.deviantart.com/vigoord/art/Claymore-Clare's-Organization-Symbol-2-901779657">vigoord</a></p>
+# PNG to SVG (Rust)
 
-# Improvements to do when more free usage comes available.
-Ask claude to get XMR.svg more symmetrical like the original. 
+Converts PNG files to true vector SVGs (color tracing with the
+[vtracer](https://github.com/visioncortex/vtracer) crate), then cleans up the
+edges so straight lines stay straight and curves stay smooth. The SVG is saved
+next to the PNG with the same name (`logo.png` -> `logo.svg`).
 
-
-# What claude.ai wrote down below 
-# PNG to SVG (Linux)
-
-Converts PNG files to true vector SVGs (color tracing with
-[vtracer](https://github.com/visioncortex/vtracer)), then cleans up the edges so
-straight lines stay straight and curves stay smooth. The SVG is saved next to
-the PNG with the same name (`logo.png` -> `logo.svg`).
+The result is one small native binary: no interpreter, no virtual environment
+and no packaging step.
 
 ## Files
 
-| File               | Purpose                                                        |
-|--------------------|----------------------------------------------------------------|
-| `png_to_svg.py`    | The program                                                    |
-| `build.sh`         | Builds one self-contained executable at `dist/png_to_svg`      |
-| `install.sh`       | Installs it to `~/.local/bin` and adds "Open With" for PNGs    |
-| `diagnose.py`      | Finds which vtracer code path crashes, if you get a segfault   |
-| `requirements.txt` | Python packages (for running from source)                      |
+| File             | Purpose                                                      |
+|------------------|--------------------------------------------------------------|
+| `Cargo.toml`     | Project definition (one dependency: `vtracer`)               |
+| `src/main.rs`    | Command line, batch handling, notifications, runs vtracer    |
+| `src/smooth.rs`  | Edge cleanup: lines, corners, circles, curves (no dependencies) |
+| `build.sh`       | Builds `target/release/png_to_svg`                           |
+| `install.sh`     | Installs it and adds "Open With" for PNGs                    |
 
 ## Build and install
 
-You need Python 3 with `venv` and internet access (for pip).
+Install Rust from https://rustup.rs, then:
 
 ```
-bash build.sh        # creates dist/png_to_svg
-bash install.sh      # installs it for your user, no sudo needed
+bash build.sh        # cargo build --release
+bash install.sh      # per-user install, no sudo
 ```
 
-**Use Python 3.12 or 3.13.** vtracer's native extension has crashed
-(segmentation fault) on Python 3.14. If `python3` on your system is 3.14:
+Optional fully static binary (runs on any Linux regardless of glibc):
 
 ```
-PYTHON=python3.13 bash build.sh
+rustup target add x86_64-unknown-linux-musl
+STATIC=1 bash build.sh
 ```
 
-(or create the interpreter with `uv`/`pyenv` and point `PYTHON` at it).
-
-The binary bundles Python and its libraries, but it needs a glibc at least as
-new as the machine that built it. Build on the oldest distro you want to
-support.
+Run the tests for the smoothing code with `cargo test`.
 
 ## Use
 
@@ -69,14 +51,6 @@ png_to_svg --no-smooth image.png     # keep vtracer's raw output
 An existing SVG with the same name is overwritten. The installer does not make
 this the default app for PNGs, so double-clicking still opens your image viewer.
 
-## Run from source (no build)
-
-```
-python3.13 -m venv env && source env/bin/activate
-pip install -r requirements.txt
-python png_to_svg.py image.png
-```
-
 ## How the edge cleanup works
 
 vtracer follows the pixel staircase of an edge, which leaves straight diagonals
@@ -85,8 +59,20 @@ detected, and then:
 
 - straight stretches become exact `L` lines, with corners snapped to where
   neighboring lines meet;
-- curved stretches are refit as a few cubic Béziers (within about 1 px);
+- circles and circular arcs (like a round logo) are detected and rebuilt as
+  true circles (up to four cubic Béziers of 90 degrees each), so they are
+  perfectly round and symmetrical instead of lumpy;
+- other curved stretches are refit as a few cubic Béziers (within about 1 px);
 - shapes smaller than ~24 px (e.g. tiny text) are left untouched.
 
-Pure Python, no extra dependencies. If cleanup fails for any reason, the raw
-vtracer output is kept.
+If cleanup can't process a shape, that shape is left exactly as vtracer wrote it.
+
+## Notes
+
+- The tracing runs on a thread with a 512 MB stack (virtual memory, only used
+  if needed) and panics are caught, so one bad image doesn't stop a batch.
+- Keep `panic = "unwind"` (the default); don't switch the release profile to
+  `panic = "abort"`.
+- If the build fails on `vtracer::Config` or `convert_image_to_svg`, the crate's
+  API changed between versions. `src/main.rs` is the only file that touches it
+  (function `trace`); check the crate docs for your version.
