@@ -1,3 +1,0 @@
-vtracer
-pillow
-pyinstaller
