@@ -1,7 +1,6 @@
 # SlopCoded-PNG-To-SVG
 A Slop Coded-PNG-To-SVG Converter made by claude.ai for linux
-# What claude.ai wrote
-
+# What claude.ai wrote down below 
 # PNG to SVG (Linux)
 
 Converts PNG files to true vector SVGs (color tracing with
