@@ -1,6 +1,6 @@
 pkgname=slopcoded-png-to-svg
 _pkgname=SlopCoded-PNG-To-SVG
-pkgver=0.1
+pkgver=0.2
 pkgrel=1
 pkgdesc="A Slop Coded PNG To SVG Converter"
 arch=('x86_64')
@@ -15,20 +15,21 @@ source=(${_pkgname}::git+$url.git)
 sha256sums=('SKIP')
 
 prepare() {
-mkdir -p target/release
+mkdir -p "${_pkgname}/target/release"
 }
 
 package() {
+ cd "${_pkgname}"
  if [ "${STATIC:-0}" = "1" ]; then
     cargo build --release --target x86_64-unknown-linux-musl
-    mkdir -p target/release
-    cp target/x86_64-unknown-linux-musl/release/png_to_svg target/release/png_to_svg
+    mkdir -p ../target/release
+    cp target/x86_64-unknown-linux-musl/release/png_to_svg ../target/release/png_to_svg
 else
     cargo build --release
 fi
 
   #BIN_SRC="${srcdir}/dist/"
-  BIN_SRC="target/release/png_to_svg"
+  BIN_SRC="${srcdir}/${_pkgname}/target/release/png_to_svg"
   BIN_DIR="${HOME}/.local/bin"
   APP_DIR="${HOME}/.local/share/applications"
   mkdir -p "$BIN_DIR" "$APP_DIR"
