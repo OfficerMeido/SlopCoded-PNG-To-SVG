@@ -18,7 +18,8 @@ const CORNER_ANGLE: f64 = 0.55; // radians (~31 degrees) that counts as a corner
 const MIN_SIZE: f64 = 24.0; // shapes smaller than this (px) are left alone
 const RMS_LIMIT: f64 = 0.8; // RMS deviation (px, after wobble smoothing) still treated as a line / circle
 const FIT_MAX: f64 = 2.6; // worst deviation (px, after wobble smoothing) for a line
-const ARC_P98: f64 = 1.6; // 98th-percentile deviation (px) for a circle (ends may be rounded)
+const ARC_P98: f64 = 1.6; // 98th-percentile deviation (px) of the points that fit a circle
+const ARC_MIN_INLIERS: f64 = 0.75; // share of points that must lie on the circle (rest: inward dents)
 
 pub const DEFAULT_TOLERANCE: f64 = 0.8;
 
@@ -533,35 +534,59 @@ fn fit_circle(r: &[P]) -> Option<(P, f64)> {
     Some(((cx, cy), rad))
 }
 
-/// If the run lies on a circular arc, return it. A few points near the ends
-/// may be off (corner rounding), so the circle is refit without outliers and
-/// judged on RMS and 98th-percentile deviation.
+/// If the run lies on a circular arc, return it.
+///
+/// The circle is fit robustly: points far from it are ignored, so a localized
+/// dent where the tracer cut inside the true circle does not spoil the fit.
+/// Only inward dents are forgiven (that is what a tracer's chord shortcuts
+/// do); an outward bulge is a real feature and rejects the circle.
 fn arc_from_run(r: &[P], tol: f64) -> Option<Circle> {
+    let n = r.len();
+    let cmp = |a: &f64, b: &f64| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal);
     let mut fit = fit_circle(r)?;
-    for _ in 0..2 {
+    let mut thr = ARC_P98;
+    for _ in 0..6 {
         let (c, rad) = fit;
-        let devs: Vec<f64> = r.iter().map(|&p| (dist(p, c) - rad).abs()).collect();
-        let rms = (devs.iter().map(|x| x * x).sum::<f64>() / devs.len() as f64).sqrt();
-        let lim = 1.2f64.max(2.5 * rms);
-        let keep: Vec<P> = (0..r.len()).filter(|&i| devs[i] <= lim).map(|i| r[i]).collect();
-        if keep.len() == r.len() || (keep.len() as f64) < 0.9 * r.len() as f64 {
-            break;
+        let sd: Vec<f64> = r.iter().map(|&p| dist(p, c) - rad).collect();
+        let mut sorted = sd.clone();
+        sorted.sort_by(cmp);
+        let med = sorted[n / 2];
+        let mut ad: Vec<f64> = sd.iter().map(|x| (x - med).abs()).collect();
+        ad.sort_by(cmp);
+        thr = ARC_P98.max(3.0 * 1.4826 * ad[n / 2]);
+        let inl: Vec<P> = (0..n).filter(|&i| sd[i].abs() <= thr).map(|i| r[i]).collect();
+        if (inl.len() as f64) < 0.5 * n as f64 {
+            return None;
         }
-        match fit_circle(&keep) {
-            Some(f) => fit = f,
-            None => break,
+        let refit = fit_circle(&inl)?;
+        let done = dist(refit.0, c) < 1e-3 && (refit.1 - rad).abs() < 1e-3;
+        fit = refit;
+        if done {
+            break;
         }
     }
     let (c, rad) = fit;
     if rad < 6.0 || rad > 1e5 {
         return None;
     }
-    let mut devs: Vec<f64> = r.iter().map(|&p| (dist(p, c) - rad).abs()).collect();
-    let rms = (devs.iter().map(|x| x * x).sum::<f64>() / devs.len() as f64).sqrt();
-    devs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let p98 = devs[(0.98 * (devs.len() - 1) as f64) as usize];
+    let sd: Vec<f64> = r.iter().map(|&p| dist(p, c) - rad).collect();
+    let mut inl: Vec<f64> = sd.iter().filter(|x| x.abs() <= thr).map(|x| x.abs()).collect();
+    let outl: Vec<f64> = sd.iter().cloned().filter(|x| x.abs() > thr).collect();
+    if (inl.len() as f64) < ARC_MIN_INLIERS * n as f64 {
+        return None;
+    }
+    inl.sort_by(cmp);
+    let rms = (inl.iter().map(|x| x * x).sum::<f64>() / inl.len() as f64).sqrt();
+    let p98 = inl[(0.98 * (inl.len() - 1) as f64) as usize];
     if rms > RMS_LIMIT || p98 > tol {
         return None;
+    }
+    if !outl.is_empty() {
+        let inward = outl.iter().filter(|&&x| x < 0.0).count();
+        let deepest = outl.iter().fold(0.0f64, |m, x| m.max(x.abs()));
+        if (inward as f64) < 0.9 * outl.len() as f64 || deepest > 12.0f64.max(0.05 * rad) {
+            return None;
+        }
     }
     let (mut total, mut steps) = (0.0f64, 0.0f64);
     let mut prev = (r[0].1 - c.1).atan2(r[0].0 - c.0);
@@ -884,6 +909,25 @@ mod tests {
         for i in 1..400 {
             let a = 2.0 * PI * i as f64 / 400.0;
             d.push_str(&format!(" L{:.2} {:.2}", 500.0 + 100.0 * a.cos(), 300.0 + 100.0 * a.sin()));
+        }
+        d.push_str(" Z");
+        let out = smooth_path_data(&d, DEFAULT_TOLERANCE);
+        assert_eq!(out.matches('C').count(), 4, "{}", out);
+        assert!(!out.contains('L'), "{}", out);
+    }
+
+    #[test]
+    fn circle_with_inward_dent_is_still_a_circle() {
+        // Radius 200 with a 6 px dent (like a tracer's chord shortcut) over 20 degrees.
+        let mut d = String::from("M700 300");
+        for i in 1..600 {
+            let a = 2.0 * PI * i as f64 / 600.0;
+            let deg = a.to_degrees();
+            let mut r = 200.0;
+            if (100.0..=120.0).contains(&deg) {
+                r -= 6.0 * (1.0 - (deg - 110.0).abs() / 10.0);
+            }
+            d.push_str(&format!(" L{:.2} {:.2}", 500.0 + r * a.cos(), 300.0 + r * a.sin()));
         }
         d.push_str(" Z");
         let out = smooth_path_data(&d, DEFAULT_TOLERANCE);
